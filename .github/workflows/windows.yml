@@ -1,6 +1,6 @@
 name: Windows
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
@@ -13,6 +13,25 @@ jobs:
     - uses: actions/checkout@v3.5.2
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v1.3.1
-    - name: Build
+    - name: Build R3nzSkin.dll
       shell: cmd
-      run: msbuild R3nzSkin/R3nzSkin.vcxproj /p:Platform=x64 /p:Configuration=${{ matrix.configuration }}
+      run: msbuild R3nzSkin/R3nzSkin.vcxproj /m /p:Platform=x64 /p:Configuration=${{ matrix.configuration }}
+    - name: Build R3nzSkin_Injector.exe
+      shell: cmd
+      # the runner image ships the .NET Framework 4.8.1 targeting pack only
+      # (no 4.8), so retarget the C++/CLI injector for CI explicitly
+      run: msbuild R3nzSkin_Injector/R3nzSkin_Injector.vcxproj /m /p:Platform=x64 /p:Configuration=${{ matrix.configuration }} /p:TargetFrameworkVersion=v4.8.1
+    - name: Check outputs
+      shell: cmd
+      run: |
+        dir /s /b *.dll *.exe
+        where /r . R3nzSkin.dll >nul || (echo ERROR: R3nzSkin.dll was not built && exit /b 1)
+        where /r . R3nzSkin_Injector.exe >nul || (echo ERROR: R3nzSkin_Injector.exe was not built && exit /b 1)
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: R3nzSkin-${{ matrix.configuration }}-x64
+        path: |
+          **/R3nzSkin.dll
+          **/R3nzSkin_Injector.exe
+        if-no-files-found: error
